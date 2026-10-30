@@ -1,0 +1,30 @@
+name: job-alert
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: job-alert
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check for new jobs
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          MIN_YEARS: "8"
+        run: python job_alert.py
+      - name: Save seen jobs
+        run: |
+          git config user.name "job-alert-bot"
+          git config user.email "job-alert-bot@users.noreply.github.com"
+          git add seen_jobs.json
+          git diff --cached --quiet || (git commit -m "update seen jobs" && git push)
