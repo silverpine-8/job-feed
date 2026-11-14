@@ -21,7 +21,7 @@ jobs:
       - name: Check for new jobs
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
-          MIN_YEARS: "8"
+          MIN_YEARS: "6"
         run: python job_alert.py
       - name: Save seen jobs
         run: |
