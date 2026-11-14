@@ -49,7 +49,14 @@
     "Sumo Logic": "sumologic",
     "New Relic": "newrelic",
     "Tanium": "tanium",
-    "Pure Storage": "purestorage"
+    "Pure Storage": "purestorage",
+    "Razorpay": "razorpaysoftwareprivatelimited",
+    "PagerDuty": "pagerduty",
+    "Vercel": "vercel",
+    "Anthropic": "anthropic",
+    "Mixpanel": "mixpanel",
+    "Endor Labs": "endorlabs",
+    "DigitalOcean": "digitalocean98"
   },
   "lever": {
     "Paytm": "paytm",
@@ -58,7 +65,8 @@
     "Palantir": "palantir",
     "Spotify": "spotify",
     "Zeta": "zeta",
-    "Binance": "binance"
+    "Binance": "binance",
+    "Metabase": "metabase"
   },
   "ashby": {
     "Ramp": "ramp",
@@ -107,54 +115,18 @@
   "amazon": true,
   "instahyre": true,
   "exclude_companies": [
-    "Tata Consultancy",
-    "TCS",
-    "Infosys",
-    "Wipro",
-    "Accenture",
-    "Cognizant",
-    "HCL",
-    "Tech Mahindra",
-    "Capgemini",
-    "LTIMindtree",
-    "Mindtree",
-    "L&T",
-    "Mphasis",
-    "Deloitte",
-    "PwC",
-    "Ernst",
-    "EY ",
-    "KPMG",
-    "IBM",
-    "Publicis Sapient",
-    "Genpact",
-    "NTT",
-    "DXC",
-    "Hexaware",
-    "Persistent",
-    "Zensar",
-    "Coforge",
-    "Birlasoft",
-    "Virtusa",
-    "UST",
-    "Sonata",
-    "Cyient",
-    "Happiest Minds",
-    "Quess",
-    "Randstad",
-    "Teamlease",
-    "Adecco",
-    "ManpowerGroup",
-    "Klimb",
-    "Firmable",
-    "Optum",
-    "ACL Digital",
-    "Sasken",
-    "Altimetrik",
-    "Movate",
-    "Nagarro",
-    "EPAM",
-    "Globant",
-    "Thoughtworks"
-  ]
+    "Tata Consultancy", "TCS", "Infosys", "Wipro", "Accenture", "Cognizant", "HCL", "Tech Mahindra",
+    "Capgemini", "LTIMindtree", "Mindtree", "L&T", "Mphasis", "Deloitte", "PwC", "Ernst", "EY ", "KPMG",
+    "IBM", "Publicis Sapient", "Genpact", "NTT", "DXC", "Hexaware", "Persistent", "Zensar", "Coforge",
+    "Birlasoft", "Virtusa", "UST", "Sonata", "Cyient", "Happiest Minds", "Quess", "Randstad", "Teamlease",
+    "Adecco", "ManpowerGroup", "Klimb", "Firmable", "Optum", "ACL Digital", "Sasken", "Altimetrik",
+    "Movate", "Nagarro", "EPAM", "Globant", "Thoughtworks"
+  ],
+  "smartrecruiters": {
+    "ServiceNow": "ServiceNow"
+  },
+  "workable": {
+    "Hugging Face": "huggingface"
+  },
+  "himalayas": true
 }
