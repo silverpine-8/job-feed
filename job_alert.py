@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Alert on new Staff/Principal Security Engineer and Security Architect jobs (India/remote, 8+ yrs).
+"""Alert on new security engineering jobs (India/remote) that fit ~9 years of experience:
+product/application/supply-chain/AI security, security engineer/architect, senior through staff.
 
-Reads official public job feeds (Greenhouse, Lever, Ashby, Workday, Amazon) for the companies in
+Reads official public job feeds (Greenhouse, Lever, Ashby, Workday, SmartRecruiters, Workable, Himalayas, Amazon) for the companies in
 companies.json and sends a push notification through ntfy.sh for every new matching job.
 
 Env vars:
   NTFY_TOPIC      ntfy topic to publish to (required to get phone alerts)
-  MIN_YEARS       minimum years the job should ask for (default 8); Staff/Principal/Architect titles
-                  are also kept when they ask 5+, since that is usually the posted floor for those levels
+  MIN_YEARS       lowest years-of-experience a job may ask for (default 6)
+  MAX_YEARS       highest years a job may ask for (default 11); jobs asking more are too senior
+  INSTAHYRE_YEARS years value sent to Instahyre's own filter (default 9)
   INCLUDE_UNSTATED  "1" to also alert on matching titles whose description states no years (default 1)
   LOOP_MINUTES    if set, run forever and check every N minutes (for laptop use)
 """
@@ -25,15 +27,17 @@ from concurrent.futures import ThreadPoolExecutor
 HERE = os.path.dirname(os.path.abspath(__file__))
 STATE_FILE = os.path.join(HERE, "seen_jobs.json")
 COMPANIES_FILE = os.path.join(HERE, "companies.json")
-MIN_YEARS = int(os.getenv("MIN_YEARS", "8"))
+MIN_YEARS = int(os.getenv("MIN_YEARS", "6"))
+MAX_YEARS = int(os.getenv("MAX_YEARS", "11"))
+INSTAHYRE_YEARS = int(os.getenv("INSTAHYRE_YEARS", "9"))
 INCLUDE_UNSTATED = os.getenv("INCLUDE_UNSTATED", "1") == "1"
 NTFY_TOPIC = os.getenv("NTFY_TOPIC", "").strip()
 UA = {"User-Agent": "Mozilla/5.0 (job-alert personal script)", "Accept": "application/json"}
 
 TITLE_SECURITY = re.compile(r"\b(security|appsec|infosec|cyber|cybersecurity)\b", re.I)
-TITLE_LEVEL = re.compile(r"\b(staff|principal|lead|architect|architecture|distinguished|senior\s+staff)\b", re.I)
-SENIOR_TITLE = re.compile(r"\b(staff|principal|architect|architecture|distinguished)\b", re.I)
-SENIOR_TITLE_MIN_YEARS = 5  # Staff/Principal/Architect titles often list "5+ years" as the bare minimum
+TITLE_TOO_JUNIOR_OR_MGMT = re.compile(
+    r"\b(junior|jr|associate|entry|graduate|trainee|apprentice|manager|director|head\s+of|vp|vice\s+president|"
+    r"chief|ciso|engineering\s+manager)\b", re.I)
 TITLE_EXCLUDE = re.compile(
     r"\b(physical|sales|pre-?sales|account|customer|solutions?|consultant|analyst|intern|recruit\w*|"
     r"counsel|legal|compliance|grc|audit\w*|guard|officer|program\s+manager|project\s+manager|"
@@ -71,7 +75,8 @@ def strip_html(s):
 
 
 def title_ok(title):
-    return bool(TITLE_SECURITY.search(title) and TITLE_LEVEL.search(title) and not TITLE_EXCLUDE.search(title))
+    return bool(TITLE_SECURITY.search(title) and not TITLE_EXCLUDE.search(title)
+                and not TITLE_TOO_JUNIOR_OR_MGMT.search(title))
 
 
 def location_ok(loc):
@@ -192,13 +197,13 @@ INSTAHYRE_SKILLS = ["Security Architecture", "Application Security", "Product Se
 
 
 def fetch_instahyre(company="Instahyre", exclude=None):
-    """Instahyre (India). Its years filter already limits results to jobs suitable for MIN_YEARS."""
+    """Instahyre (India). Its years filter already limits results to jobs suitable for INSTAHYRE_YEARS."""
     bad = re.compile("|".join(re.escape(x) for x in exclude), re.I) if exclude else None
     out, seen = [], set()
     for n, skill in enumerate(INSTAHYRE_SKILLS):
         if n:
             time.sleep(2)  # Instahyre rate-limits bursts
-        q = urllib.parse.urlencode({"skills": skill, "years": MIN_YEARS, "limit": 35, "offset": 0})
+        q = urllib.parse.urlencode({"skills": skill, "years": INSTAHYRE_YEARS, "limit": 35, "offset": 0})
         try:
             objs = get(f"https://www.instahyre.com/api/v1/job_search?{q}").get("objects", [])
         except urllib.error.HTTPError as e:
@@ -216,6 +221,60 @@ def fetch_instahyre(company="Instahyre", exclude=None):
     return out
 
 
+def fetch_smartrecruiters(company, slug):
+    out = []
+    for q in ("security",):
+        data = get(f"https://api.smartrecruiters.com/v1/companies/{slug}/postings?limit=100&q={q}")
+        for j in data.get("content", []):
+            loc = j.get("location") or {}
+            place = ", ".join(x for x in [loc.get("city", ""), loc.get("region", ""), (loc.get("country") or "").upper()] if x)
+            if loc.get("country", "").lower() == "in":
+                place += " India"
+            if loc.get("remote"):
+                place = f"{place} Remote".strip()
+            out.append({"id": f"sr:{slug}:{j['id']}", "company": company, "title": j.get("name", ""),
+                        "location": place, "url": f"https://jobs.smartrecruiters.com/{slug}/{j['id']}",
+                        "desc": lambda r=j.get("ref"): strip_html(" ".join(
+                            (v or {}).get("text", "") for v in
+                            ((get(r).get("jobAd") or {}).get("sections") or {}).values()))})
+    return out
+
+
+def fetch_workable(company, slug):
+    data = get(f"https://apply.workable.com/api/v1/widget/accounts/{slug}?details=true")
+    out = []
+    for j in data.get("jobs", []):
+        loc = ", ".join(x for x in [j.get("city", ""), j.get("state", ""), j.get("country", "")] if x)
+        if j.get("telecommuting"):
+            loc = f"{loc} Remote".strip()
+        out.append({"id": f"workable:{slug}:{j.get('shortcode')}", "company": company, "title": j.get("title", ""),
+                    "location": loc, "url": j.get("url", ""),
+                    "desc": lambda t=strip_html(j.get("description", "")): t})
+    return out
+
+
+HIMALAYAS_QUERIES = ["product security", "application security", "security engineer", "supply chain security",
+                     "ai security", "security architect"]
+
+
+def fetch_himalayas(company="Himalayas", _=None):
+    """Remote jobs from Himalayas' search feed. Kept when open to India or to anyone (no restriction)."""
+    out, seen = [], set()
+    for q in HIMALAYAS_QUERIES:
+        data = get("https://himalayas.app/jobs/api/search?" + urllib.parse.urlencode({"q": q}))
+        for j in data.get("jobs", []):
+            guid = j.get("guid") or j.get("applicationLink")
+            if guid in seen:
+                continue
+            seen.add(guid)
+            restr = j.get("locationRestrictions") or []
+            loc = "India" if any(INDIA.search(x) for x in restr) else ("Remote" if not restr else ", ".join(restr))
+            out.append({"id": f"himalayas:{guid}", "company": f"{j.get('companyName', '')} (Himalayas)",
+                        "title": j.get("title", ""), "location": loc, "url": j.get("applicationLink", ""),
+                        "desc": lambda t=strip_html(j.get("description", "")): t})
+    return out
+
+
 def collect():
     cfg = json.load(open(COMPANIES_FILE))
     tasks = []
@@ -227,6 +286,12 @@ def collect():
         tasks.append((fetch_ashby, name, slug))
     for name, path in cfg.get("workday", {}).items():
         tasks.append((fetch_workday, name, path))
+    for name, slug in cfg.get("smartrecruiters", {}).items():
+        tasks.append((fetch_smartrecruiters, name, slug))
+    for name, slug in cfg.get("workable", {}).items():
+        tasks.append((fetch_workable, name, slug))
+    if cfg.get("himalayas"):
+        tasks.append((fetch_himalayas, "Himalayas", None))
     if cfg.get("instahyre"):
         tasks.append((fetch_instahyre, "Instahyre", cfg.get("exclude_companies", [])))
     if cfg.get("amazon"):
@@ -265,12 +330,11 @@ def evaluate(job):
     if not location_ok(job["location"]):
         return False
     if job.get("instahyre"):
-        return MIN_YEARS  # filtered server-side by Instahyre's years parameter
+        return INSTAHYRE_YEARS  # filtered server-side by Instahyre's years parameter
     yrs = years_asked(text)
     if yrs is None:
         return None if INCLUDE_UNSTATED else False
-    floor = min(MIN_YEARS, SENIOR_TITLE_MIN_YEARS) if SENIOR_TITLE.search(job["title"]) else MIN_YEARS
-    return yrs if yrs >= floor else False
+    return yrs if MIN_YEARS <= yrs <= MAX_YEARS else False
 
 
 def notify(title, message, url=None, priority="high"):
