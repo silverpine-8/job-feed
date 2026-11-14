@@ -1,3 +1,4 @@
+---
 name: job-alert
 on:
   schedule:
